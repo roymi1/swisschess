@@ -1,8 +1,8 @@
-player module and Player object
+## player module and Player object
 
 player module player.py contains the Player object with the information attributes relevant to his tournament record:
 
-serial - will be its serial number in this tournament, from 1 to the number of participants
+serial - will be its serial number in this tournament, this number doesn't change after set, starting from 1 to the number of participants
 name - a string with the player full name
 rating - a number that represents the player pre-expected playing level. Player with no know rating will be considered 1100.0 for rating.
 score - will be the player current score (sum of points for past rounds)
@@ -15,9 +15,12 @@ The colorbal will be used for next round pairing - will try to match player with
 and the player will highest colorbal will be black (otherwise the highest score will get its "preferred" color)..
 results - the list of scores or the player's games, ordered by rounds.
 email - E-mail of the players
-opponents - list of past opponents that the player played (was was paired) against
+opponents - list of past serial numbers of opponents that the player played (was was paired) against
 games - list of Match records for past games
 
-the following methods are available:
+As the serial numbers of players begin with 1, and round numbers also begin with 1, so in each access to a list by index which is a participant
+serial number or round number, should be with number-1 index.
+
+The following methods are available:
 calculate_score: calculates the total score of the player so far
 calculate_buchholz: calculates the sum of scores of the player's opponents so far. This is a secondary sorting criterion after the player's score.

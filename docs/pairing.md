@@ -11,10 +11,12 @@
 
 ## These are the stages of the pairing of rounds from round 2
 These are the main stages:
+- Pairing is done when asked by the user, after most of the results from previous rounds and games are known and tourtnament.last_round_played is equal to last_round_paired. 
+However, there may be some unplayed games or missing results, they will be considered as 0.5 point each for pairing purpose only.
 - If player have quit the tournament, they will no longer be matched in next rounds.
 - Updating the status of players with up-to-date score, buchholz and color balance (colorbal) with tournament.update_players_data().
 - If a player has equal number of games as white and black, his colorbal will be 0.5 the color he had in his last game,
-(0.5 if it was white and -0.5 if it was black), so preferably the player will get an opposite color next match.
+(0.5 if it was white and -0.5 if it was black), so colorbal should not be 0 (unless player was bye in last round) preferably the player will get an opposite color next match. colorbal should not be 0. Unplayed games also count for color balance as we expect them to be completed later, technical results also count - do they depend only on previous pairing and not games results. 
 - Sorting all players to groups by their current score. Within each group, players will be sorted by the higher buchholz or lower serial number.
 - Pair the groups according to the score by this order: first the highest score, then the second highest score, and so on until, but not including the
 median group (the one with 50% score from the number of games). Then move to the bottom: first the lowest score group, then the second lower and so on,
@@ -33,7 +35,8 @@ so in this case, try to find another possible match within the group, or as last
 - As a first option, the highest player in a group will be paired against the lowest player, second player with second last player and so on.
 But this can be exchanged, if they already played, or if their preferred color is the same (this can be checked by multiplying their colorbal -
 if it's positive, we'll try to exchange the pairings). For example, with 6 players in a group, the default pairing will be 1 vs. 6, 2 vs. 5 and
-3 vs. 4. But if 1 and 6 both positive colorbal and 2 and 5 have both negative colorbal, so we'll match 1-5, 2-6 and 3-4.
+3 vs. 4. But if 1 and 6 both positive colorbal and 2 and 5 have both negative colorbal, so we'll match 1-5, 2-6 and 3-4. Color preferences are soft constraints, except when
+both partner have colorbal 3 or both have -3, thus they are not pairable.
 - When pairing two players, the one with higher colorbal (than means, played more games as white, or last game as white) will be black. If they're
 equal colorbal, the players with higher ranking (higher buchholz or lower serial number) will get their preferred color.
 - If the number of players is odd, the lowest ranked will be "floater" to the next group towards the middle (for lower score groups, it will be highest ranged player). For example, after two rounds when pairing

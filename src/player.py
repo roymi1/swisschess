@@ -19,6 +19,39 @@ class Player:
         self.opponents = []
         self.games = []
         self.serial = serial
+        self.quit = False
+
+    def __gt__(self, other):
+        if not isinstance(other, Player):
+            return NotImplemented
+        if hasattr(self, "score") and hasattr(other, "score"):
+            if self.score > other.score:
+                return True
+            elif self.score < other.score:
+                return False
+            elif self.score == other.score:
+                if self.buchholz > other.buchholz:
+                    return True
+                elif self.buchholz < other.buchholz:
+                    return False
+                elif self.buchholz == other.buchholz:
+                    return self.serial < other.serial
+
+    def __lt__(self, other):
+        if not isinstance(other, Player):
+            return NotImplemented
+        if hasattr(self, "score") and hasattr(other, "score"):
+            if self.score > other.score:
+                return False
+            elif self.score < other.score:
+                return True
+            elif self.score == other.score:
+                if self.buchholz > other.buchholz:
+                    return False
+                elif self.buchholz < other.buchholz:
+                    return True
+                elif self.buchholz == other.buchholz:
+                    return self.serial > other.serial
 
     def to_dict(self) -> dict:
         return {"name": self.name,
@@ -30,7 +63,8 @@ class Player:
                 "results": self.results,
                 "opponents": self.opponents,
                 "score": self.score,
-                "games": []
+                "games": [],
+                "quit": self.quit if hasattr(self, "quit") else False
                 }
 
     def from_dict(self, data: dict):
@@ -45,6 +79,9 @@ class Player:
         self.results = data.get("results")
         self.opponents = data.get("opponents")
         self.games = data.get("games")
+        #Safety percaution:
+        if self.games is None:
+            self.games = []
         self.score = data.get("score")
         if self.score is None:
             self.score = 0.0

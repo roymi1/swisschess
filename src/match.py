@@ -13,6 +13,7 @@ class Match:
         )
         self.round_num = round_num
         self.white = white
+        self.bye = bye
         if bye:
             self.black = white
         else:
@@ -21,8 +22,8 @@ class Match:
             self.white_result = 0.5
             self.black_result = 0.5
         else:
-            self.white_result = None
-            self.black_result = None
+            self.white_result = white_result
+            self.black_result = black_result
 
     def update_result(self, white_result, black_result):
         self.white_result = white_result
@@ -36,9 +37,9 @@ class Match:
 
     def white_score(self):
         if self.white_result == 1 or self.white_result == "+" or self.bye:
-            return 1
+            return 1.0
         elif self.white_result == 0 or self.white_result == "-":
-            return 0
+            return 0.0
         elif self.white_result == 0.5:
             return 0.5
 
@@ -59,7 +60,8 @@ class Match:
     def from_dict(self, data):
         self.round_num = data.get("round_num")
         self.white = data.get("white")
-        set.black = data.get("black")
+        self.black = data.get("black")
+        self.bye = self.white == self.black
         self.white_result = data.get("white_result")
         self.black_result = data.get("black_result")
 
@@ -86,11 +88,11 @@ class Round:
         print("Board     White         Score       -     Black    Score")
         for board, match in enumerate(self.all_matches, start=1):
             if isinstance(match.white, int):
-                white_player = tour.all_participants[match.white]
+                white_player = tour.player(match.white)
             else:
                 white_player = match.white
             if isinstance(match.black, int):
-                black_player = tour.all_participants[match.black]
+                black_player = tour.player(match.black)
             else:
                 black_player = match.black
             print(
@@ -100,7 +102,7 @@ class Round:
             )
 
         if isinstance(csv_fname, str):
-            with open(csv_fname, "w") as csvrep:
+            with open(csv_fname, "w", newline="", encoding="utf-8") as csvrep:
                 fieldnames = [
                     "Board",
                     "WhiteNum",
@@ -112,7 +114,15 @@ class Round:
                 ]
                 writer = csv.DictWriter(csvrep, fieldnames=fieldnames)
                 writer.writeheader()
-                for board, match in enumerate(self.matches, start=1):
+                for board, match in enumerate(self.all_matches, start=1):
+                    if isinstance(match.white, int):
+                        white_player = tour.player(match.white)
+                    else:
+                        white_player = match.white
+                    if isinstance(match.black, int):
+                        black_player = tour.player(match.black)
+                    else:
+                        black_player = match.black
                     writer.writerow(
                         {
                             "Board": board,
@@ -125,6 +135,104 @@ class Round:
                         }
                     )
 
+    def import_results(self, csv_fname, tour=None):
+        """Import results from a CSV produced by :meth:`report_games`.
+
+        Games must already be paired in ``all_matches``.  Rows are matched to
+        games using the one-based ``Board`` column.  Supplying ``tour`` also
+        verifies the player serial numbers and names before any results are
+        changed.
+
+        Return the number of imported games.
+        """
+        required_fields = {
+            "Board",
+            "WhiteNum",
+            "WhiteName",
+            "WhiteScore",
+            "BlackNum",
+            "BlackName",
+            "BlackScore",
+        }
+
+        def parse_result(value, row_num, field):
+            value = value.strip()
+            if value == "":
+                return None
+            if value in {"+", "-"}:
+                return value
+            try:
+                result = float(value)
+            except ValueError as err:
+                raise ValueError(
+                    f"CSV row {row_num}: invalid {field} value {value!r}"
+                ) from err
+            if result not in {0.0, 0.5, 1.0}:
+                raise ValueError(
+                    f"CSV row {row_num}: invalid {field} value {value!r}"
+                )
+            return int(result) if result in {0.0, 1.0} else result
+
+        def player_for(player_ref):
+            if isinstance(player_ref, int) and tour is not None:
+                return tour.all_participants[player_ref]
+            return player_ref
+
+        pending_results = []
+        seen_boards = set()
+        with open(csv_fname, newline="", encoding="utf-8-sig") as csv_file:
+            reader = csv.DictReader(csv_file)
+            fields = set(reader.fieldnames or [])
+            missing_fields = required_fields - fields
+            if missing_fields:
+                missing = ", ".join(sorted(missing_fields))
+                raise ValueError(f"CSV is missing required column(s): {missing}")
+
+            for row_num, row in enumerate(reader, start=2):
+                try:
+                    board = int(row["Board"].strip())
+                except (AttributeError, TypeError, ValueError) as err:
+                    raise ValueError(
+                        f"CSV row {row_num}: Board must be an integer"
+                    ) from err
+                if board < 1 or board > len(self.all_matches):
+                    raise ValueError(
+                        f"CSV row {row_num}: board {board} is not in this round"
+                    )
+                if board in seen_boards:
+                    raise ValueError(f"CSV row {row_num}: duplicate board {board}")
+                seen_boards.add(board)
+
+                match = self.all_matches[board - 1]
+                if tour is not None:
+                    white_player = player_for(match.white)
+                    black_player = player_for(match.black)
+                    expected = {
+                        "WhiteNum": str(white_player.serial),
+                        "WhiteName": white_player.name,
+                        "BlackNum": str(black_player.serial),
+                        "BlackName": black_player.name,
+                    }
+                    for field, expected_value in expected.items():
+                        actual_value = row[field].strip()
+                        if actual_value != expected_value:
+                            raise ValueError(
+                                f"CSV row {row_num}: {field} is {actual_value!r}; "
+                                f"expected {expected_value!r} for board {board}"
+                            )
+
+                white_result = parse_result(
+                    row["WhiteScore"], row_num, "WhiteScore"
+                )
+                black_result = parse_result(
+                    row["BlackScore"], row_num, "BlackScore"
+                )
+                pending_results.append((match, white_result, black_result))
+
+        for match, white_result, black_result in pending_results:
+            match.update_result(white_result, black_result)
+        return len(pending_results)
+
     def to_dict(self) -> dict:
         return {
             "round_num": self.round_num,
@@ -135,37 +243,34 @@ class Round:
         self.round_num = data.get("round_num")
         all_matches = data.get("all_matches")
         print(f"Importing {len(all_matches)} matches from round {self.round_num}")
+        self.all_matches = []
         for a_match in all_matches:
             new_match = Match.__new__(Match)
             new_match.from_dict(a_match)
             self.all_matches.append(new_match)
             if tour:
-                tour.all_participants[new_match.white].games.append(new_match)
-                if new_match.white != new_match.black:
-                    tour.all_participants[new_match.black].games.append(new_match)
+                tour.player(new_match.white).games.append(new_match)
+                if new_match.black:
+                    tour.player(new_match.black).games.append(new_match)
 
     def may_be_paired(self, white, black, tour=None):
         if isinstance(white, Player):
             white_player = white
             white_number = white.serial
         elif isinstance(white, int) and tour:
-            white_player = tour.all_participants[white]
-            white_number = white
+            white_player = tour.player(white)
+            white_number = tour.player(black)
         else:
             print("No tournament data to extract from!")
             return False
-        white_opponent_numbers = [
-            opponent.serial for opponent in white_player.opponents
-        ]
+        white_opponent_numbers = white_player.opponents
         if isinstance(black, Player):
             black_player = black
             black_number = black.serial
         elif isinstance(black, int) and tour:
-            black_player = tour.all_participants[black]
+            black_player = tour.player(black)
             black_number = black
-        black_opponent_numbers = [
-            opponent.serial for opponent in black_player.opponents
-        ]
+        black_opponent_numbers = black_player.opponents
         if (
             black_number in white_opponent_numbers
             or white_number in black_opponent_numbers
@@ -176,10 +281,12 @@ class Round:
 
     def pair_players(self, round_num, white, black, bye=False, tour=None):
         if self.may_be_paired(white, black, tour) or bye:
-            new_match = Match(round_num, white, black, bye)
+            new_match = Match(round_num, white, black, bye=bye)
             self.all_matches.append(new_match)
-            white_player = tour.all_participants[white]
-            black_player = tour.all_participants[black]
+            white_player = tour.player(white)
+            black_player = tour.player(black)
+            assert isinstance(white_player, Player), f"Player {white} is not valid"
+            assert isinstance(black_player, Player), f"Player {black} is not valid"
             white_player.opponents.append(black)
             white_player.games.append(new_match)
             if not bye:
@@ -192,14 +299,14 @@ class Round:
     def pair_first_round(self, tour):
         part_num = len(tour.all_participants)
         half_part = part_num // 2
-        for i in range(0, half_part):
-            if i % 2 == 1:
+        for i in range(1, half_part+1):
+            if i % 2 == 0:
                 self.pair_players(1, i, i + half_part, tour=tour)
             else:
                 self.pair_players(1, i + half_part, i, tour=tour)
         if part_num % 2 == 1:
             self.pair_players(
-                1, part_num - 1, part_num - 1, bye=True, tour=tour
+                1, part_num - 1, None, bye=True, tour=tour
             )
         print("Pairing complete")
         tour.last_round_paired = 1

@@ -33,6 +33,11 @@ player is not matched any more).
 report_games provides a list of all games played or to be played in a round, the report is not
 the screen and optionally to a CSV file.
 
+import_results reads a CSV file created by report_games and updates the already-paired games in
+the round. Games are selected by the one-based Board column. Normal results may be 0, 0.5, or 1;
+technical results may be + or -, and an empty score clears the result. Passing the tournament as
+the ``tour`` argument also validates each player's serial number and name before applying results.
+
 ### Pairing
 
 Pairing is stage after a round is over (or mostly over) and the list of matches or games for the

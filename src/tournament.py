@@ -14,6 +14,16 @@ class Tournament:
         self.last_round_paired = 0
         self.last_round_played = 0
 
+    def player(self, serial):
+        if not isinstance(serial, int) or serial < 1:
+            raise ValueError(f"Invalid player serial: {serial}")
+        return self.all_participants[serial - 1]
+
+    def round(self, round_num):
+        if not isinstance(round_num, int) or round_num < 1:
+            raise ValueError(f"Invalid round number: {round_num}")
+        return self.all_rounds[round_num - 1]
+
     def load_players(self, csv_fname, keep_serial=False):
         # Load list of participants from CSV file
         with open(csv_fname) as csvfile:
@@ -143,6 +153,84 @@ class Tournament:
         except Exception as err:
             print("Unable to read tournament data from", file, ":\n", err)
 
+    def update_players_data(self):
+        for player in self.all_participants:
+            player.score = 0.0
+            player.buchholz = 0.0
+            player.colorbal = 0.0
+        for round_num, round in enumerate(self.all_rounds, start=1):
+            for board, match in enumerate(round.all_matches, start=1):
+                white_num = match.white
+                black_num = match.black
+                white_player = self.player(white_num)
+                black_player = self.player(black_num)
+                bye = match.bye
+                if bye:
+                    white_player.score += 1
+                    white_player.games[round_num-1] = match
+                    white_player.results[round_num-1] = "+"
+                    white_player.opponents[round_num-1] = white_num
+                else:
+                    print(f"Updating score for {white_num} and {black_num} from round {round_num}")
+                    white_player.score += match.white_score()
+                    black_player.score += match.black_score()
+                    if len(white_player.results)<round_num:
+                        white_player.results.append(match.white_result)
+                    else:
+                        white_player.results[round_num-1] = match.white_result
+                    if len(black_player.results)<round_num:
+                        black_player.results.append(match.black_result)
+                    else:
+                        black_player.results[round_num-1] = match.black_result
+                    white_player.games[round_num-1] = match
+                    black_player.games[round_num-1] = match
+                    if len(white_player.opponents)<round_num:
+                        white_player.opponents.append(black_num)
+                    else:
+                        white_player.opponents[round_num-1] = black_num
+                    if len(black_player.opponents)< round_num:
+                        black_player.opponents.append(white_num)
+                    else:
+                        black_player.opponents[round_num-1] = white_num
+                    white_player.colorbal += 1
+                    black_player.colorbal -= 1
+        for player in self.all_participants:
+            if not isinstance(player.score, (int, float)) or (player.score >
+                                                        self.last_round_paired):
+                print("Error updating player", player.serial, player.name, "with score", player.score)
+            else:
+                player.buchholz = sum([self.player(opponent).score for opponent in player.opponents])
+
+    def report_standings(self, csv_fname=None):
+        def disp(rating) -> str:
+            if rating is None:
+                return "      "
+            else:
+                return f"{rating:4.1f}"
+
+        self.update_players_data()
+        players_sorted = self.all_participants.copy()
+        players_sorted.sort(reverse=True)
+
+        print("     Serial      Name                   ",
+              "E-mail              Rating           Score Buchholz")
+        for part in players_sorted:
+            print(f"     {part.serial:3d}       {part.name:20s}    ",
+                  f" {part.email:25}      {disp(part.rating)}     ",
+                  f"{part.score:2.1f}  {part.buchholz:2.1f} ")
+        print()
+        if isinstance(csv_fname, str):
+            with open("participants_list.csv", "w") as csvrep:
+                fieldnames = ['Serial', 'Name', 'Email', 'Rating']
+                writer = csv.DictWriter(csvrep, fieldnames=fieldnames)
+                writer.writeheader()
+                for a_player in self.all_participants:
+                    writer.writerow({'Serial': a_player.serial,
+                                     'Name': a_player.name,
+                                     'Email': a_player.email,
+                                     'Rating': a_player.rating
+                                     })
+
     def pair_round(self, new_round=None):
         if isinstance(new_round, int):
             if new_round == self.last_round_played + 1:
@@ -162,7 +250,7 @@ class Tournament:
             else:
                 print("Some is wrong - last round played is", self.last_round_played)
                 return
-        elif new_round in None:
+        elif new_round is None:
             if self.last_round_paired == self.last_round_played:
                 new_round = self.last_round_played + 1
                 newly_round = Round(new_round)

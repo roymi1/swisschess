@@ -1,13 +1,13 @@
-SwissChess
+# SwissChess
 
 This is a program or tool that is meant to manage a chess tournament in the swiss system.
 
-Usage
+## Usage
 
 Currently it is only built as an API, no main program, menus or GUI made yet.
 main1.py was a one-time file done for start-up of data.
 
-Overview
+## Overview
 
 This program supports the main rules of the swiss system for tournaments:
 - There is a fixed list of participants during the whole tournament, from first round to last round
@@ -21,7 +21,8 @@ we have score and buccholz information from the tournament itself.
 - We will try to balance for each player, the number of games as white with the number as black, and make them close as possible.
 - If the number of participants is odd, each round there will be a "bye" - player with no game. The player will be selected based on lowest rating or score, the bye will get 1.0 points for this round, and no player will be bye twice in the tournament.
 
-API Usage: 
+## API Usage: 
+
 Starting a new tournament:
 import tournament
 t = tournament.Tournament("Cork site chess 2026", 7)
