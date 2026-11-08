@@ -72,7 +72,7 @@ class Player:
         self.name = data.get("name")
         self.rating = data.get("rating")
         self.score = data.get("score")
-        self.buchholz = data.get("bochholz")
+        self.buchholz = data.get("buchholz", data.get("bochholz", 0.0))
         self.percentage = data.get("percentage")
         self.colorbal = data.get("colorbal")
         self.email = data.get("email")
@@ -82,6 +82,7 @@ class Player:
         #Safety percaution:
         if self.games is None:
             self.games = []
+        self.quit = data.get("quit", False)
         self.score = data.get("score")
         if self.score is None:
             self.score = 0.0
@@ -108,7 +109,7 @@ class Player:
         self.buchholz = 0
         for _round_num, partner in enumerate(self.opponents):
             if partner != self.serial:
-                self.buchholz += all_participants[partner].score
+                self.buchholz += all_participants[partner - 1].score
             else:
                 self.buchholz += len(self.results)/2
         if echo:

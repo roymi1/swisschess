@@ -48,3 +48,7 @@ divided to two halfs, each with n/2 player. In board 1, player number one plays 
 number n/2 + 1, in board 2 player #2 against n/2 + 2 (with reverse colors to the previous game), 
 player #3 against n/2 + 3 (with reverse colors to previous, so player #3 has the same color
 as player #1) and so on.
+
+For later rounds, pair applies the rules in pairing.md. It rebuilds scores, Buchholz and color
+balance from prior matches, excludes players who quit, selects an eligible bye when needed, and
+uses deterministic backtracking when a preferred pairing prevents completion of the round.

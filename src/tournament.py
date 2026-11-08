@@ -153,53 +153,68 @@ class Tournament:
         except Exception as err:
             print("Unable to read tournament data from", file, ":\n", err)
 
-    def update_players_data(self):
+    def update_players_data(self, for_pairing=False):
+        """Rebuild player statistics from the tournament's matches.
+
+        When ``for_pairing`` is true, a missing game result counts as 0.5 for
+        each player, as required by the pairing rules.  Games, results and
+        opponents are derived data and are rebuilt here to avoid stale or
+        duplicated entries.
+        """
         for player in self.all_participants:
             player.score = 0.0
             player.buchholz = 0.0
             player.colorbal = 0.0
-        for round_num, round in enumerate(self.all_rounds, start=1):
-            for board, match in enumerate(round.all_matches, start=1):
-                white_num = match.white
-                black_num = match.black
-                white_player = self.player(white_num)
-                black_player = self.player(black_num)
-                bye = match.bye
-                if bye:
-                    white_player.score += 1
-                    white_player.games[round_num-1] = match
-                    white_player.results[round_num-1] = "+"
-                    white_player.opponents[round_num-1] = white_num
-                else:
-                    print(f"Updating score for {white_num} and {black_num} from round {round_num}")
-                    white_player.score += match.white_score()
-                    black_player.score += match.black_score()
-                    if len(white_player.results)<round_num:
-                        white_player.results.append(match.white_result)
-                    else:
-                        white_player.results[round_num-1] = match.white_result
-                    if len(black_player.results)<round_num:
-                        black_player.results.append(match.black_result)
-                    else:
-                        black_player.results[round_num-1] = match.black_result
-                    white_player.games[round_num-1] = match
-                    black_player.games[round_num-1] = match
-                    if len(white_player.opponents)<round_num:
-                        white_player.opponents.append(black_num)
-                    else:
-                        white_player.opponents[round_num-1] = black_num
-                    if len(black_player.opponents)< round_num:
-                        black_player.opponents.append(white_num)
-                    else:
-                        black_player.opponents[round_num-1] = white_num
-                    white_player.colorbal += 1
-                    black_player.colorbal -= 1
+            player.results = []
+            player.opponents = []
+            player.games = []
+
+        last_was_bye = {player.serial: False for player in self.all_participants}
+        last_color = {player.serial: None for player in self.all_participants}
+
+        for a_round in self.all_rounds:
+            for match in a_round.all_matches:
+                white_player = self.player(match.white)
+                white_player.games.append(match)
+                if match.bye:
+                    white_player.score += 1.0
+                    white_player.results.append("+")
+                    last_was_bye[white_player.serial] = True
+                    continue
+
+                black_player = self.player(match.black)
+                black_player.games.append(match)
+                white_player.opponents.append(black_player.serial)
+                black_player.opponents.append(white_player.serial)
+                white_player.results.append(match.white_result)
+                black_player.results.append(match.black_result)
+
+                white_score = match.white_score()
+                black_score = match.black_score()
+                if for_pairing:
+                    if white_score is None:
+                        white_score = 0.5
+                    if black_score is None:
+                        black_score = 0.5
+                white_player.score += white_score or 0.0
+                black_player.score += black_score or 0.0
+
+                white_player.colorbal += 1.0
+                black_player.colorbal -= 1.0
+                last_color[white_player.serial] = "white"
+                last_color[black_player.serial] = "black"
+                last_was_bye[white_player.serial] = False
+                last_was_bye[black_player.serial] = False
+
         for player in self.all_participants:
-            if not isinstance(player.score, (int, float)) or (player.score >
-                                                        self.last_round_paired):
-                print("Error updating player", player.serial, player.name, "with score", player.score)
-            else:
-                player.buchholz = sum([self.player(opponent).score for opponent in player.opponents])
+            player.buchholz = sum(
+                self.player(opponent).score for opponent in player.opponents
+            )
+            if player.colorbal == 0 and not last_was_bye[player.serial]:
+                if last_color[player.serial] == "white":
+                    player.colorbal = 0.5
+                elif last_color[player.serial] == "black":
+                    player.colorbal = -0.5
 
     def report_standings(self, csv_fname=None):
         def disp(rating) -> str:
